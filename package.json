@@ -1,0 +1,15 @@
+{
+  "name": "static-lean-canvas-website",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@zfben/astro-head": "^1.13.0",
+    "astro": "^5.13.2"
+  }
+}

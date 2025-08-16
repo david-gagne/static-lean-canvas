@@ -1,0 +1,522 @@
+---
+/**
+ * src/components/LeanCanvas.astro
+ * Lean Canvas shell (vanilla JS) with Concept/Early as internal subsections,
+ * and subsections positioned just-below mid-height of their adjacent boxes.
+ */
+
+/* 
+canvasTitle: Should be the primary customer segment or segment category driving the business model. Can also be called simply the "Big Idea" canvas for ideas that are less refined.
+projectName: Should be the name of the company, project, or business idea this Lean Canvas is modeling.
+*/
+const { canvasTitle, projectName } = Astro.props;
+---
+
+<style>
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  :root {
+    --canvas-width: 1280px;
+    --grid-gap: 6px; /* internal divider thickness */
+    --divider: #000; /* grid line color */
+    --paper: #fff;
+    --label: #777;
+    --label-size: 11px;
+
+    /* Subsection anchor offsets (pixels from top of parent cell) */
+    /* Channels total height across rows 2+3 = 140 + 180 = 320, midpoint ≈ 160 */
+    /* “Just below” midpoint ≈ 176 — tweak to taste */
+    --sub-start-customers: 250px; /* Early Adopters inside Customers */
+    --sub-start-uvp: 250px; /* High-Level Concept inside UVP */
+  }
+
+  .vw-warning {
+    display: none;
+    background: #ffdfdf;
+    color: #8b0000;
+  }
+  @media (max-width: 1279px) {
+    .vw-warning {
+      display: block;
+    }
+  }
+
+  /* Outer frame and crisp internal lines via grid gap exposing black bg */
+  .canvas-frame {
+    width: var(--canvas-width);
+    margin: 24px auto 48px auto;
+    border: 6px solid var(--divider);
+    background: var(--divider);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  }
+  .canvas {
+    display: grid;
+    background: var(--divider);
+    gap: var(--grid-gap);
+    grid-template-columns: repeat(5, 1fr);
+    /* Rows tuned to your layout */
+    grid-template-rows: 200px 140px 180px 220px;
+    grid-template-areas:
+      "problem solution uvp unfair customers"
+      "problem kmetrics uvp channels customers"
+      "problem kmetrics uvp channels customers"
+      "costs costs costs revenue revenue";
+  }
+
+  .cell {
+    background: var(--paper);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .label {
+    color: var(--label);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+    font-size: var(--label-size);
+  }
+  .sublabel {
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+    font-size: 10px;
+  }
+  .content {
+    flex: 1;
+  }
+
+  .problem {
+    grid-area: problem;
+  }
+  .solution {
+    grid-area: solution;
+  }
+  .uvp {
+    grid-area: uvp;
+  }
+  .unfair {
+    grid-area: unfair;
+  }
+  .customers {
+    grid-area: customers;
+  }
+  .kmetrics {
+    grid-area: kmetrics;
+  }
+  .channels {
+    grid-area: channels;
+  }
+  .costs {
+    grid-area: costs;
+  }
+  .revenue {
+    grid-area: revenue;
+  }
+
+  /* Notes */
+  .note {
+    background: #fafafa;
+    border: 1px dashed #d0d0d0;
+    border-radius: 4px;
+    padding: 0.5rem 0.75rem;
+    line-height: 1.35;
+    min-height: 2.25rem;
+    position: relative;
+    outline: none;
+  }
+  .note .btn-remove {
+    position: absolute;
+    top: -8px;
+    left: -8px;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 50%;
+    background: #000;
+    color: #fff;
+    font-weight: 700;
+    line-height: 20px;
+    display: none;
+    cursor: pointer;
+  }
+  .note:hover .btn-remove {
+    display: block;
+  }
+
+  .btn-add {
+    width: 25px;
+    height: 25px;
+    border: none;
+    border-radius: 50%;
+    background: #000;
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  /* spacing now targets the subsection we added */
+  .problem .label + .content + .subsection {
+    margin-top: 0.5rem;
+    border-top: 1px solid #e5e5e5;
+    padding-top: 12px;
+  }
+
+  /* --- Subsection placement integration --- */
+
+  /* Make parent cells anchor containers */
+  .uvp,
+  .customers {
+    position: relative;
+  }
+
+  /* Prevent main content from forcing subsection to bottom */
+  .uvp .content,
+  .customers .content .problem .content {
+    flex: 0 0 auto;
+  }
+
+  /* Position subsections at adjustable anchors with a light divider */
+  .customers .subsection,
+  .uvp .subsection,
+  .problem .subsection {
+    position: absolute;
+    left: 0;
+    right: 0;
+    padding-top: 12px;
+    background: transparent;
+  }
+  .customers .subsection {
+    top: var(--sub-start-customers);
+  }
+  .uvp .subsection {
+    top: var(--sub-start-uvp);
+  }
+  .problem .subsection {
+    top: var(--sub-start-uvp);
+  }
+
+  /* If content grows tall, allow scrolling within the tile */
+  .customers,
+  .uvp,
+  .problem {
+    overflow: auto;
+  }
+
+  #canvas-details {
+    max-width: 1280px;
+  }
+</style>
+
+<section class="vw-warning w-100 tc pv2 ph3">
+  Viewport too small. Use a screen at least 1280px wide for accurate
+  screenshots.
+</section>
+
+<div id="canvas-details" class="center sans-serif pt4">
+  <div class="title-block w-100 flex justify-between">
+    <div>
+      <small class="eyebrow black-50 ttu f7 dib pb1">Customer Segment</small>
+      <h1 class="f2 mt0 fw5">{canvasTitle}</h1>
+    </div>
+    <div>
+      <small class="eyebrow black-50 ttu f7 dib pb1">Project Name</small>
+      <h1 class="f2 mt0 fw5">{projectName}</h1>
+    </div>
+  </div>
+</div>
+
+<div id="lean-canvas" class="canvas-frame sans-serif">
+  <div class="canvas" role="region" aria-label="Lean Canvas">
+    <!-- Problem -->
+    <div class="cell problem pa3" data-key="problem">
+      <div class="row flex items-center justify-between mb2">
+        <div class="label">Problem</div>
+        <button
+          class="btn-add"
+          type="button"
+          data-action="add-note"
+          aria-label="Add note">+</button
+        >
+      </div>
+      <div class="content"></div>
+
+      <!-- Existing Alternatives as a proper subsection -->
+      <div class="subsection mt3 pa3">
+        <div class="row flex items-center justify-between mb2">
+          <div class="sublabel">Existing Alternatives</div>
+          <button
+            class="btn-add"
+            type="button"
+            data-action="add-note"
+            data-scope="existing"
+            aria-label="Add note">+</button
+          >
+        </div>
+        <div class="subcontent" data-scope="existing"></div>
+      </div>
+    </div>
+
+    <!-- Solution -->
+    <div class="cell solution pa3" data-key="solution">
+      <div class="row flex items-center justify-between mb2">
+        <div class="label">Solution</div>
+        <button class="btn-add" type="button" data-action="add-note">+</button>
+      </div>
+      <div class="content"></div>
+    </div>
+
+    <!-- UVP (with internal High-Level Concept subsection) -->
+    <div class="cell uvp pa3" data-key="uvp">
+      <div class="row flex items-center justify-between mb2">
+        <div class="label">Unique Value Proposition</div>
+        <button class="btn-add" type="button" data-action="add-note">+</button>
+      </div>
+      <div class="content"></div>
+
+      <div class="subsection mt3 pa3">
+        <div class="row flex items-center justify-between mb2">
+          <div class="sublabel">High-Level Concept</div>
+          <button
+            class="btn-add"
+            type="button"
+            data-action="add-note"
+            data-scope="concept">+</button
+          >
+        </div>
+        <div class="subcontent" data-scope="concept"></div>
+      </div>
+    </div>
+
+    <!-- Unfair Advantage -->
+    <div class="cell unfair pa3" data-key="unfair-advantage">
+      <div class="row flex items-center justify-between mb2">
+        <div class="label">Unfair Advantage</div>
+        <button class="btn-add" type="button" data-action="add-note">+</button>
+      </div>
+      <div class="content"></div>
+    </div>
+
+    <!-- Customer Segments (with internal Early Adopters subsection) -->
+    <div class="cell customers pa3" data-key="customer-segments">
+      <div class="row flex items-center justify-between mb2">
+        <div class="label">Customer Segments</div>
+        <button class="btn-add" type="button" data-action="add-note">+</button>
+      </div>
+      <div class="content"></div>
+
+      <div class="subsection mt3 pa3">
+        <div class="row flex items-center justify-between mb2">
+          <div class="sublabel">Early Adopters</div>
+          <button
+            class="btn-add"
+            type="button"
+            data-action="add-note"
+            data-scope="early">+</button
+          >
+        </div>
+        <div class="subcontent" data-scope="early"></div>
+      </div>
+    </div>
+
+    <!-- Key Metrics -->
+    <div class="cell kmetrics pa3" data-key="key-metrics">
+      <div class="row flex items-center justify-between mb2">
+        <div class="label">Key Metrics</div>
+        <button class="btn-add" type="button" data-action="add-note">+</button>
+      </div>
+      <div class="content"></div>
+    </div>
+
+    <!-- Channels -->
+    <div class="cell channels pa3" data-key="channels">
+      <div class="row flex items-center justify-between mb2">
+        <div class="label">Channels</div>
+        <button class="btn-add" type="button" data-action="add-note">+</button>
+      </div>
+      <div class="content"></div>
+    </div>
+
+    <!-- Bottom: Costs / Revenue -->
+    <div class="cell costs pa3" data-key="cost-structure">
+      <div class="row flex items-center justify-between mb2">
+        <div class="label">Cost Structure</div>
+        <button class="btn-add" type="button" data-action="add-note">+</button>
+      </div>
+      <div class="content"></div>
+    </div>
+    <div class="cell revenue pa3" data-key="revenue-streams">
+      <div class="row flex items-center justify-between mb2">
+        <div class="label">Revenue Streams</div>
+        <button class="btn-add" type="button" data-action="add-note">+</button>
+      </div>
+      <div class="content"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    // Keep screenshots consistent by blocking browser zoom-in shortcuts
+    document.addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "+" || e.key === "="))
+        e.preventDefault();
+    });
+
+    const root = document.getElementById("lean-canvas");
+    if (!root) return;
+
+    // --- helpers -------------------------------------------------------------
+
+    const hasText = (noteEl) => {
+      const body = noteEl.querySelector(".note-body");
+      return !!body && body.textContent.trim().length > 0;
+    };
+
+    const updateRemoveVisibility = (noteEl, hovering = false) => {
+      const btn = noteEl.querySelector(".btn-remove");
+      if (!btn) return;
+      // Show only if the note has text AND we're hovering
+      btn.style.display = hovering && hasText(noteEl) ? "block" : "none";
+    };
+
+    const wireHoverAndInput = (noteEl) => {
+      // Hover control for visibility
+      noteEl.addEventListener("mouseenter", () =>
+        updateRemoveVisibility(noteEl, true)
+      );
+      noteEl.addEventListener("mouseleave", () =>
+        updateRemoveVisibility(noteEl, false)
+      );
+
+      // Update visibility when content changes
+      const body = noteEl.querySelector(".note-body");
+      if (body) {
+        const sync = () =>
+          updateRemoveVisibility(noteEl, noteEl.matches(":hover"));
+        body.addEventListener("input", sync);
+        body.addEventListener("paste", () => setTimeout(sync, 0));
+        body.addEventListener("drop", () => setTimeout(sync, 0));
+      }
+    };
+
+    const ensureRemoveBtn = (noteEl) => {
+      let btn = noteEl.querySelector(".btn-remove");
+      if (!btn) {
+        btn = document.createElement("button");
+        btn.className = "btn-remove";
+        btn.type = "button";
+        btn.setAttribute("aria-label", "Remove note");
+        btn.title = "Remove note";
+        btn.textContent = "–";
+        // Important: keep the button OUT of edit flow
+        btn.setAttribute("contenteditable", "false");
+        btn.tabIndex = -1;
+        btn.style.display = "none"; // default hidden; shown via hover logic
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          noteEl.remove();
+        });
+        noteEl.appendChild(btn);
+      }
+      return btn;
+    };
+
+    const ensureBody = (noteEl) => {
+      let body = noteEl.querySelector(".note-body");
+      if (!body) {
+        body = document.createElement("div");
+        body.className = "note-body";
+        body.setAttribute("contenteditable", "true");
+        // Move any non-button children into the body
+        const toMove = [];
+        noteEl.childNodes.forEach((n) => {
+          if (
+            !(
+              n.nodeType === 1 &&
+              n.classList &&
+              n.classList.contains("btn-remove")
+            )
+          ) {
+            toMove.push(n);
+          }
+        });
+        toMove.forEach((n) => body.appendChild(n));
+        // Ensure body is the first child so the remove button (absolute) sits above it
+        noteEl.insertBefore(body, noteEl.firstChild);
+      } else {
+        body.setAttribute("contenteditable", "true");
+      }
+      return body;
+    };
+
+    const upgradeNote = (noteEl) => {
+      // Make sure the note has our expected structure
+      ensureBody(noteEl);
+      ensureRemoveBtn(noteEl);
+      wireHoverAndInput(noteEl);
+      // Initial visibility check
+      updateRemoveVisibility(noteEl, false);
+    };
+
+    const addNote = (containerEl) => {
+      const note = document.createElement("div");
+      note.className = "note mb2";
+      // Build structure
+      const body = document.createElement("div");
+      body.className = "note-body";
+      body.setAttribute("contenteditable", "true");
+      note.appendChild(body);
+
+      const btn = document.createElement("button");
+      btn.className = "btn-remove";
+      btn.type = "button";
+      btn.setAttribute("aria-label", "Remove note");
+      btn.title = "Remove note";
+      btn.textContent = "–";
+      btn.setAttribute("contenteditable", "false");
+      btn.tabIndex = -1;
+      btn.style.display = "none";
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        note.remove();
+      });
+      note.appendChild(btn);
+
+      // Wire behaviors
+      wireHoverAndInput(note);
+
+      containerEl.appendChild(note);
+      body.focus();
+    };
+
+    // --- events --------------------------------------------------------------
+
+    // Delegate + button clicks (supports main sections and subsections via data-scope)
+    root.addEventListener("click", (e) => {
+      const btn = e.target.closest('button[data-action="add-note"]');
+      if (!btn) return;
+
+      const scope = btn.getAttribute("data-scope");
+      if (scope) {
+        const sub = btn
+          .closest(".cell")
+          ?.querySelector(`.subcontent[data-scope="${scope}"]`);
+        if (sub) addNote(sub);
+        return;
+      }
+
+      const cell = btn.closest(".cell");
+      const content = cell?.querySelector(".content");
+      if (content) addNote(content);
+    });
+
+    // Upgrade any existing server-rendered notes (if present)
+    root.querySelectorAll(".note").forEach(upgradeNote);
+  });
+</script>
