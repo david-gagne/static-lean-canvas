@@ -9,7 +9,6 @@
 canvasTitle: Should be the primary customer segment or segment category driving the business model. Can also be called simply the "Big Idea" canvas for ideas that are less refined.
 projectName: Should be the name of the company, project, or business idea this Lean Canvas is modeling.
 */
-const { canvasTitle, projectName } = Astro.props;
 ---
 
 <style>
@@ -30,8 +29,8 @@ const { canvasTitle, projectName } = Astro.props;
     /* Subsection anchor offsets (pixels from top of parent cell) */
     /* Channels total height across rows 2+3 = 140 + 180 = 320, midpoint ≈ 160 */
     /* “Just below” midpoint ≈ 176 — tweak to taste */
-    --sub-start-customers: 250px; /* Early Adopters inside Customers */
-    --sub-start-uvp: 250px; /* High-Level Concept inside UVP */
+    --sub-start-customers: 350px; /* Early Adopters inside Customers */
+    --sub-start-uvp: 350px; /* High-Level Concept inside UVP */
   }
 
   .vw-warning {
@@ -59,12 +58,12 @@ const { canvasTitle, projectName } = Astro.props;
     gap: var(--grid-gap);
     grid-template-columns: repeat(5, 1fr);
     /* Rows tuned to your layout */
-    grid-template-rows: 200px 140px 180px 220px;
+    grid-template-rows: 250px 150px 180px 210px;
     grid-template-areas:
       "problem solution uvp unfair customers"
       "problem kmetrics uvp channels customers"
       "problem kmetrics uvp channels customers"
-      "costs costs costs revenue revenue";
+      "footer footer footer footer footer";
   }
 
   .cell {
@@ -117,6 +116,10 @@ const { canvasTitle, projectName } = Astro.props;
   }
   .revenue {
     grid-area: revenue;
+  }
+  .footer {
+    grid-area: footer;
+    gap: var(--grid-gap);
   }
 
   /* Notes */
@@ -222,11 +225,21 @@ const { canvasTitle, projectName } = Astro.props;
   <div class="title-block w-100 flex justify-between">
     <div>
       <small class="eyebrow black-50 ttu f7 dib pb1">Customer Segment</small>
-      <h1 class="f2 mt0 fw5">{canvasTitle}</h1>
+      <h1 id="canvasTitle" class="f2 mv0 fw5"></h1>
+      <button
+        id="canvasTitlePromptButton"
+        class="mt2 bn bg-blue white pa3 br2 f6"
+        >Click to give this canvas a title</button
+      >
     </div>
     <div>
       <small class="eyebrow black-50 ttu f7 dib pb1">Project Name</small>
-      <h1 class="f2 mt0 fw5">{projectName}</h1>
+      <h2 id="projectName" class="f2 mv0 fw5"></h2>
+      <button
+        id="canvasProjectPromptButton"
+        class="mt2 bn bg-green white pa3 br2 f6"
+        >Give this canvas a project</button
+      >
     </div>
   </div>
 </div>
@@ -343,24 +356,54 @@ const { canvasTitle, projectName } = Astro.props;
     </div>
 
     <!-- Bottom: Costs / Revenue -->
-    <div class="cell costs pa3" data-key="cost-structure">
-      <div class="row flex items-center justify-between mb2">
-        <div class="label">Cost Structure</div>
-        <button class="btn-add" type="button" data-action="add-note">+</button>
+    <div class="footer flex">
+      <div class="cell costs pa3 w-50" data-key="cost-structure">
+        <div class="row flex items-center justify-between mb2">
+          <div class="label">Cost Structure</div>
+          <button class="btn-add" type="button" data-action="add-note">+</button
+          >
+        </div>
+        <div class="content"></div>
       </div>
-      <div class="content"></div>
-    </div>
-    <div class="cell revenue pa3" data-key="revenue-streams">
-      <div class="row flex items-center justify-between mb2">
-        <div class="label">Revenue Streams</div>
-        <button class="btn-add" type="button" data-action="add-note">+</button>
+
+      <div class="cell revenue pa3 w-50" data-key="revenue-streams">
+        <div class="row flex items-center justify-between mb2">
+          <div class="label">Revenue Streams</div>
+          <button class="btn-add" type="button" data-action="add-note">+</button
+          >
+        </div>
+        <div class="content"></div>
       </div>
-      <div class="content"></div>
     </div>
   </div>
 </div>
 
-<script>
+<script is:inline>
+  let canvasTitlePromptButton = document.getElementById(
+    "canvasTitlePromptButton"
+  );
+  let canvasProjectPromptButton = document.getElementById(
+    "canvasProjectPromptButton"
+  );
+  let canvasTitle = document.getElementById("canvasTitle");
+  let projectName = document.getElementById("projectName");
+  let canvasTitleSubmission = null;
+  let projectNameSubmission = null;
+
+  canvasTitlePromptButton.addEventListener("click", (event) => {
+    canvasTitleSubmission = prompt("Enter a customer segment for this canvas.");
+
+    canvasTitle.innerText = canvasTitleSubmission;
+    canvasTitlePromptButton.classList.add("dn");
+  });
+
+  canvasProjectPromptButton.addEventListener("click", (event) => {
+    projectNameSubmission = prompt("Enter a project name for this canvas.");
+
+    projectName.innerText = projectNameSubmission;
+    canvasProjectPromptButton.classList.add("dn");
+  });
+
   document.addEventListener("DOMContentLoaded", () => {
     // Keep screenshots consistent by blocking browser zoom-in shortcuts
     document.addEventListener("keydown", (e) => {
